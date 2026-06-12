@@ -15,6 +15,18 @@ export interface Task {
   logs: string[]
 }
 
+export interface TaskTemplate {
+  id: string
+  name: string
+  description: string
+  taskName: string
+  maxRetries: number
+  tags: string[]
+  params: Record<string, any>
+  createdAt: number
+  updatedAt: number
+}
+
 export interface ClusterNode {
   id: string
   name: string
