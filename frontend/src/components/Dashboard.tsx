@@ -2,13 +2,17 @@ import { useState, useMemo } from 'react'
 import {
   Layout, Tabs, Statistic, Row, Col, Card, Tag, Button, Input, Table, Drawer, Descriptions,
   Space, Progress, Modal, Form, InputNumber, Select, message, Popconfirm, Empty, Tooltip,
-  Divider, Badge, AutoComplete
+  Divider, Badge, AutoComplete, Alert
 } from 'antd'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip as ReTooltip, ResponsiveContainer,
   AreaChart, Area
 } from 'recharts'
-import { PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined, SaveOutlined, CopyOutlined, SearchOutlined, FileTextOutlined } from '@ant-design/icons'
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined, SaveOutlined,
+  CopyOutlined, SearchOutlined, FileTextOutlined, RightOutlined,
+  ThunderboltOutlined, AppstoreOutlined
+} from '@ant-design/icons'
 import { useTaskStore } from '../store/tasks'
 import type { Task, TaskStatus, TaskTemplate } from '../types'
 
@@ -123,7 +127,7 @@ function TemplateModal({
   )
 }
 
-function TaskTemplatesPanel() {
+function TaskTemplatesPanel({ onGoToTasks }: { onGoToTasks?: () => void }) {
   const store = useTaskStore()
   const [searchText, setSearchText] = useState('')
   const [tagFilter, setTagFilter] = useState<string[]>([])
@@ -254,18 +258,25 @@ function TaskTemplatesPanel() {
         </Row>
       </Card>
 
-      <Card>
+      <Card
+        title="📑 模板统计与快捷操作"
+        extra={onGoToTasks && (
+          <Button size="small" type="primary" ghost onClick={onGoToTasks}>
+            查看任务列表 <RightOutlined />
+          </Button>
+        )}
+      >
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
+          <Col xs={12} md={6}>
             <Statistic title="模板总数" value={store.templates.length} prefix={<FileTextOutlined />} />
           </Col>
-          <Col span={6}>
+          <Col xs={12} md={6}>
             <Statistic title="标签总数" value={allTags.length} />
           </Col>
-          <Col span={6}>
+          <Col xs={12} md={6}>
             <Statistic title="筛选结果" value={filtered.length} valueStyle={{ color: '#1890ff' }} />
           </Col>
-          <Col span={6}>
+          <Col xs={12} md={6}>
             <Statistic
               title="本月更新"
               value={store.templates.filter(t => t.updatedAt > Date.now() - 30 * 86400000).length}
@@ -429,6 +440,51 @@ function SaveAsTemplateModal({
   )
 }
 
+function QuickTemplateCard({ tpl, onApply }: { tpl: TaskTemplate; onApply: () => void }) {
+  return (
+    <Card
+      size="small"
+      style={{
+        height: '100%',
+        borderLeft: '4px solid #722ed1',
+        transition: 'all 0.2s',
+      }}
+      styles={{ body: { padding: 16 } }}
+      hoverable
+      onClick={onApply}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>📋 {tpl.name}</div>
+          <Tag color="blue" style={{ margin: 0 }}>{tpl.taskName}</Tag>
+        </div>
+        <Button
+          type="primary"
+          size="small"
+          icon={<PlayCircleOutlined />}
+          onClick={(e) => { e.stopPropagation(); onApply() }}
+        >
+          应用
+        </Button>
+      </div>
+      <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 10, minHeight: 36 }}>
+        {tpl.description || '暂无描述'}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Space size={[4, 4]} wrap style={{ flex: 1 }}>
+          {tpl.tags.slice(0, 3).map(tag => (
+            <Tag key={tag} color={tagColor(tag)} style={{ fontSize: 11, margin: 0 }}>{tag}</Tag>
+          ))}
+          {tpl.tags.length > 3 && <Tag style={{ fontSize: 11, margin: 0 }}>+{tpl.tags.length - 3}</Tag>}
+        </Space>
+        <span style={{ fontSize: 11, color: '#8c8c8c', whiteSpace: 'nowrap', marginLeft: 8 }}>
+          重试 {tpl.maxRetries} 次
+        </span>
+      </div>
+    </Card>
+  )
+}
+
 export default function Dashboard() {
   const store = useTaskStore()
   const [newTaskName, setNewTaskName] = useState('')
@@ -436,6 +492,8 @@ export default function Dashboard() {
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [templateSelectOpen, setTemplateSelectOpen] = useState(false)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>()
+  const [activeTab, setActiveTab] = useState('metrics')
+  const [showGuide, setShowGuide] = useState(true)
 
   const taskColumns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 120 },
@@ -493,10 +551,10 @@ export default function Dashboard() {
           🔧 分布式任务调度与监控平台
         </h1>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Badge count={store.templates.length} offset={[-2, 2]}>
+          <Badge.Ribbon text="模板" color="#722ed1" style={{ marginRight: 8 }}>
             <AutoComplete
-              style={{ width: 220 }}
-              placeholder="选择模板快速创建..."
+              style={{ width: 230 }}
+              placeholder="📋 选模板，一键创建任务..."
               open={templateSelectOpen}
               onDropdownVisibleChange={(o) => setTemplateSelectOpen(o)}
               value={selectedTemplateId}
@@ -508,79 +566,210 @@ export default function Dashboard() {
               }}
               notFoundContent={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无模板" />}
             />
-          </Badge>
+          </Badge.Ribbon>
           <Input
-            placeholder={selectedTemplateId ? '已选模板，点击添加创建任务' : '任务名称'}
+            placeholder={selectedTemplateId ? '✓ 已选模板，点击右侧添加' : '或手动输入任务名'}
             value={newTaskName}
             onChange={e => setNewTaskName(e.target.value)}
             onPressEnter={handleAddTask}
             disabled={!!selectedTemplateId}
-            style={{ width: 180 }}
+            style={{ width: 200 }}
             allowClear
             onClear={() => setSelectedTemplateId(undefined)}
           />
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddTask}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddTask} size="large">
             添加任务
           </Button>
-          <Tooltip title="将当前输入的任务参数保存为模板">
-            <Button icon={<SaveOutlined />} onClick={() => setSaveModalOpen(true)}>
-              保存为模板
-            </Button>
-          </Tooltip>
+          <Button
+            icon={<SaveOutlined />}
+            onClick={() => setSaveModalOpen(true)}
+            style={{ borderColor: '#faad14', color: '#faad14' }}
+            ghost
+          >
+            保存为模板
+          </Button>
+          <Button
+            type="link"
+            icon={<AppstoreOutlined />}
+            onClick={() => setActiveTab('templates')}
+            style={{ color: '#722ed1' }}
+          >
+            模板中心
+          </Button>
         </div>
       </Header>
 
       <Content style={{ padding: 16 }}>
+        {showGuide && (
+          <Alert
+            message="💡 新功能上线：任务模板中心"
+            description="运维同学可以将常用任务参数保存为模板，一键复用创建任务。点击右侧「模板中心」开始使用！"
+            type="info"
+            showIcon
+            closable
+            onClose={() => setShowGuide(false)}
+            style={{ marginBottom: 16 }}
+            action={
+              <Space>
+                <Button size="small" type="primary" onClick={() => { setActiveTab('templates'); setShowGuide(false) }}>
+                  立即体验 <RightOutlined />
+                </Button>
+              </Space>
+            }
+          />
+        )}
+
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col xs={24} sm={12} md={6}><Card><Statistic title="总任务" value={store.tasks.length} /></Card></Col>
           <Col xs={24} sm={12} md={6}><Card><Statistic title="运行中" value={runningCount} valueStyle={{ color: '#1890ff' }} /></Card></Col>
           <Col xs={24} sm={12} md={6}><Card><Statistic title="成功" value={successCount} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-          <Col xs={24} sm={12} md={6}><Card><Statistic title="失败" value={failedCount} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card
+              style={{ cursor: 'pointer', border: '2px solid #722ed140' }}
+              onClick={() => setActiveTab('templates')}
+            >
+              <Statistic
+                title={<span>📑 模板数 <span style={{ fontSize: 12, color: '#722ed1' }}>点击进入模板中心 →</span></span>}
+                value={store.templates.length}
+                valueStyle={{ color: '#722ed1' }}
+                prefix={<AppstoreOutlined />}
+              />
+            </Card>
+          </Col>
         </Row>
 
         <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
           items={[
             {
-              key: 'metrics', label: '📊 监控指标', children: (
-                <Row gutter={16}>
-                  <Col xs={24} lg={12}>
-                    <Card title="运行中任务数">
-                      <ResponsiveContainer width="100%" height={220}>
-                        <AreaChart data={store.metrics}>
-                          <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} fontSize={10} />
-                          <YAxis fontSize={10} />
-                          <ReTooltip labelFormatter={t => new Date(t as number).toLocaleString()} />
-                          <Area type="monotone" dataKey="runningTasks" stroke="#1890ff" fill="#1890ff" fillOpacity={0.3} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </Card>
-                  </Col>
-                  <Col xs={24} lg={12}>
-                    <Card title="成功率 %">
-                      <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={store.metrics}>
-                          <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} fontSize={10} />
-                          <YAxis domain={[0, 100]} fontSize={10} />
-                          <ReTooltip labelFormatter={t => new Date(t as number).toLocaleString()} />
-                          <Line type="monotone" dataKey="successRate" stroke="#52c41a" strokeWidth={2} dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </Card>
-                  </Col>
-                  <Col span={24} style={{ marginTop: 16 }}>
-                    <Card title="平均延迟 (ms)">
-                      <ResponsiveContainer width="100%" height={180}>
-                        <AreaChart data={store.metrics}>
-                          <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} fontSize={10} />
-                          <YAxis fontSize={10} />
-                          <ReTooltip />
-                          <Area type="monotone" dataKey="avgLatency" stroke="#faad14" fill="#faad14" fillOpacity={0.2} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </Card>
-                  </Col>
-                </Row>
+              key: 'metrics', label: '📊 监控概览', children: (
+                <div>
+                  <Row gutter={16}>
+                    <Col xs={24} lg={12}>
+                      <Card title="运行中任务数">
+                        <ResponsiveContainer width="100%" height={220}>
+                          <AreaChart data={store.metrics}>
+                            <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} fontSize={10} />
+                            <YAxis fontSize={10} />
+                            <ReTooltip labelFormatter={t => new Date(t as number).toLocaleString()} />
+                            <Area type="monotone" dataKey="runningTasks" stroke="#1890ff" fill="#1890ff" fillOpacity={0.3} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </Card>
+                    </Col>
+                    <Col xs={24} lg={12}>
+                      <Card title="成功率 %">
+                        <ResponsiveContainer width="100%" height={220}>
+                          <LineChart data={store.metrics}>
+                            <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} fontSize={10} />
+                            <YAxis domain={[0, 100]} fontSize={10} />
+                            <ReTooltip labelFormatter={t => new Date(t as number).toLocaleString()} />
+                            <Line type="monotone" dataKey="successRate" stroke="#52c41a" strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </Card>
+                    </Col>
+                    <Col span={24} style={{ marginTop: 16 }}>
+                      <Card title="平均延迟 (ms)">
+                        <ResponsiveContainer width="100%" height={180}>
+                          <AreaChart data={store.metrics}>
+                            <XAxis dataKey="time" tickFormatter={t => new Date(t).toLocaleTimeString()} fontSize={10} />
+                            <YAxis fontSize={10} />
+                            <ReTooltip />
+                            <Area type="monotone" dataKey="avgLatency" stroke="#faad14" fill="#faad14" fillOpacity={0.2} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </Card>
+                    </Col>
+                  </Row>
+
+                  <Card
+                    style={{ marginTop: 16 }}
+                    title={
+                      <Space>
+                        <ThunderboltOutlined style={{ color: '#722ed1' }} />
+                        <span>常用任务模板 · 一键创建</span>
+                      </Space>
+                    }
+                    extra={
+                      <Button type="link" onClick={() => setActiveTab('templates')}>
+                        查看全部模板 <RightOutlined />
+                      </Button>
+                    }
+                  >
+                    {store.templates.length === 0 ? (
+                      <Empty
+                        description="还没有模板，去创建第一个吧"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      >
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setActiveTab('templates')}>
+                          新建模板
+                        </Button>
+                      </Empty>
+                    ) : (
+                      <Row gutter={16}>
+                        {store.templates.slice(0, 4).map(tpl => (
+                          <Col xs={24} sm={12} lg={6} key={tpl.id} style={{ marginBottom: 12 }}>
+                            <QuickTemplateCard
+                              tpl={tpl}
+                              onApply={() => {
+                                store.addTaskFromTemplate(tpl.id)
+                                message.success(`已应用模板「${tpl.name}」创建任务`)
+                              }}
+                            />
+                          </Col>
+                        ))}
+                      </Row>
+                    )}
+                  </Card>
+
+                  <Row gutter={16} style={{ marginTop: 16 }}>
+                    <Col xs={24} md={12}>
+                      <Card
+                        size="small"
+                        style={{ border: '1px dashed #722ed160', background: '#722ed108' }}
+                        onClick={() => setSaveModalOpen(true)}
+                        hoverable
+                      >
+                        <div style={{ textAlign: 'center', padding: '20px 0', cursor: 'pointer' }}>
+                          <SaveOutlined style={{ fontSize: 28, color: '#722ed1', marginBottom: 8 }} />
+                          <div style={{ fontWeight: 600, color: '#722ed1' }}>💾 保存为模板</div>
+                          <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                            将常用任务参数存为模板，下次一键使用
+                          </div>
+                        </div>
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Card
+                        size="small"
+                        style={{ border: '1px dashed #1890ff60', background: '#1890ff08' }}
+                        onClick={() => setActiveTab('templates')}
+                        hoverable
+                      >
+                        <div style={{ textAlign: 'center', padding: '20px 0', cursor: 'pointer' }}>
+                          <AppstoreOutlined style={{ fontSize: 28, color: '#1890ff', marginBottom: 8 }} />
+                          <div style={{ fontWeight: 600, color: '#1890ff' }}>📑 进入模板中心</div>
+                          <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                            管理所有模板，搜索、编辑、删除模板
+                          </div>
+                        </div>
+                      </Card>
+                    </Col>
+                  </Row>
+                </div>
               )
+            },
+            {
+              key: 'templates',
+              label: (
+                <span>
+                  📑 任务模板中心
+                  <Badge count={store.templates.length} size="small" style={{ backgroundColor: '#722ed1', marginLeft: 6 }} />
+                </span>
+              ),
+              children: <TaskTemplatesPanel onGoToTasks={() => setActiveTab('tasks')} />
             },
             {
               key: 'tasks', label: '📋 任务列表', children: (
@@ -592,11 +781,6 @@ export default function Dashboard() {
                   pagination={{ pageSize: 10, showSizeChanger: true }}
                 />
               )
-            },
-            {
-              key: 'templates',
-              label: <span>📑 任务模板中心 <Badge count={store.templates.length} size="small" style={{ backgroundColor: '#722ed1' }} /></span>,
-              children: <TaskTemplatesPanel />
             },
             {
               key: 'nodes', label: '🖥️ 集群节点', children: (
